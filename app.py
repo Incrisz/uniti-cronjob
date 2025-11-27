@@ -741,6 +741,11 @@ def _execute_job_task() -> Dict[str, Any]:
     payload = (os.environ.get("LAMBDA_PAYLOAD") or "{}").strip() or "{}"
     aws_cli = (os.environ.get("AWS_CLI_PATH") or "aws").strip() or "aws"
     log_type = (os.environ.get("LAMBDA_LOG_TYPE") or "Tail").strip()
+    aws_region = (
+        os.environ.get("AWS_REGION")
+        or os.environ.get("AWS_DEFAULT_REGION")
+        or ""
+    ).strip()
 
     if not function_name:
         message = "Environment variable LAMBDA_FUNCTION_NAME must be set."
@@ -769,9 +774,19 @@ def _execute_job_task() -> Dict[str, Any]:
     if log_type:
         command.extend(["--log-type", log_type])
 
+    if aws_region:
+        command.extend(["--region", aws_region])
+
     command.append(output_path)
 
-    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    aws_env = os.environ.copy()
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=aws_env,
+    )
     stdout = completed.stdout.strip()
     stderr = completed.stderr.strip()
 
