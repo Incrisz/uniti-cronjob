@@ -738,7 +738,7 @@ def _get_scheduler_status() -> Dict[str, Any]:
 def _execute_job_task() -> Dict[str, Any]:
     """Execute the cron job task by invoking an AWS Lambda function."""
     function_name = (os.environ.get("LAMBDA_FUNCTION_NAME") or "").strip()
-    payload = (os.environ.get("LAMBDA_PAYLOAD") or "{}").strip() or "{}"
+    payload = (os.environ.get("LAMBDA_PAYLOAD") or "").strip()
     aws_cli = (os.environ.get("AWS_CLI_PATH") or "aws").strip() or "aws"
     log_type = (os.environ.get("LAMBDA_LOG_TYPE") or "Tail").strip()
     aws_region = (
@@ -756,11 +756,9 @@ def _execute_job_task() -> Dict[str, Any]:
             "status_code": 400,
         }
 
+    payload_path = None
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         output_path = tmp_file.name
-    with tempfile.NamedTemporaryFile(delete=False) as payload_file:
-        payload_file.write(payload.encode("utf-8"))
-        payload_path = payload_file.name
 
     command = [
         aws_cli,
@@ -768,9 +766,13 @@ def _execute_job_task() -> Dict[str, Any]:
         "invoke",
         "--function-name",
         function_name,
-        "--payload",
-        f"fileb://{payload_path}",
     ]
+
+    if payload:
+        with tempfile.NamedTemporaryFile(delete=False) as payload_file:
+            payload_file.write(payload.encode("utf-8"))
+            payload_path = payload_file.name
+        command.extend(["--payload", f"fileb://{payload_path}"])
 
     if log_type:
         command.extend(["--log-type", log_type])
@@ -801,10 +803,11 @@ def _execute_job_task() -> Dict[str, Any]:
             os.remove(output_path)
         except OSError:
             pass
-        try:
-            os.remove(payload_path)
-        except OSError:
-            pass
+        if payload_path:
+            try:
+                os.remove(payload_path)
+            except OSError:
+                pass
 
     metadata: Dict[str, Any] = {}
     if stdout:
