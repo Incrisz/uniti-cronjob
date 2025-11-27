@@ -735,7 +735,7 @@ def _get_scheduler_status() -> Dict[str, Any]:
     return snapshot
 
 
-def _execute_job_task() -> Dict[str, Any]:
+def _execute_job_task(trigger: str) -> Dict[str, Any]:
     """Execute the cron job task by invoking an AWS Lambda function."""
     function_name = (os.environ.get("LAMBDA_FUNCTION_NAME") or "").strip()
     payload = (os.environ.get("LAMBDA_PAYLOAD") or "").strip()
@@ -757,6 +757,19 @@ def _execute_job_task() -> Dict[str, Any]:
         }
 
     payload_path = None
+
+    # Build a JSON payload and inject the trigger source.
+    payload_to_send: Dict[str, Any] = {"trigger": trigger}
+    if payload:
+        try:
+            parsed = json.loads(payload)
+            if isinstance(parsed, dict):
+                payload_to_send.update({k: v for k, v in parsed.items() if k != "trigger"})
+            else:
+                payload_to_send["data"] = parsed
+        except json.JSONDecodeError:
+            payload_to_send["raw_payload"] = payload
+
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         output_path = tmp_file.name
 
@@ -768,11 +781,11 @@ def _execute_job_task() -> Dict[str, Any]:
         function_name,
     ]
 
-    if payload:
-        with tempfile.NamedTemporaryFile(delete=False) as payload_file:
-            payload_file.write(payload.encode("utf-8"))
-            payload_path = payload_file.name
-        command.extend(["--payload", f"fileb://{payload_path}"])
+    # Always send a payload that includes the trigger.
+    with tempfile.NamedTemporaryFile(delete=False) as payload_file:
+        payload_file.write(json.dumps(payload_to_send).encode("utf-8"))
+        payload_path = payload_file.name
+    command.extend(["--payload", f"fileb://{payload_path}"])
 
     if log_type:
         command.extend(["--log-type", log_type])
@@ -869,7 +882,7 @@ def _run_job(trigger: str) -> Dict[str, Any]:
     details: Dict[str, Any] = {}
 
     try:
-        result = _execute_job_task()
+        result = _execute_job_task(trigger)
         success = bool(result.get("success"))
         message = result.get("message") or ("Job completed successfully." if success else "Job finished with issues.")
         details = result.get("details") or {}
