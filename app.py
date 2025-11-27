@@ -758,6 +758,9 @@ def _execute_job_task() -> Dict[str, Any]:
 
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         output_path = tmp_file.name
+    with tempfile.NamedTemporaryFile(delete=False) as payload_file:
+        payload_file.write(payload.encode("utf-8"))
+        payload_path = payload_file.name
 
     command = [
         aws_cli,
@@ -765,10 +768,8 @@ def _execute_job_task() -> Dict[str, Any]:
         "invoke",
         "--function-name",
         function_name,
-        "--cli-binary-format",
-        "raw-in-base64-out",
         "--payload",
-        payload,
+        f"fileb://{payload_path}",
     ]
 
     if log_type:
@@ -798,6 +799,10 @@ def _execute_job_task() -> Dict[str, Any]:
     finally:
         try:
             os.remove(output_path)
+        except OSError:
+            pass
+        try:
+            os.remove(payload_path)
         except OSError:
             pass
 
