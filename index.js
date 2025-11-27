@@ -6,11 +6,12 @@ dotenv.config();
 exports.handler = async (event) => {
   const env = process.env.NODE_ENV;
   const trigger = (event && event.trigger) || "unknown";
-  const isCronTrigger = trigger === "cron";
+  const isCronTrigger = trigger === "cron" || trigger === "cronjob";
+
+  console.log(`Invocation trigger: ${trigger}`);
 
   if (isCronTrigger) {
     // Handle cron invocation separately.
-    console.log("Invocation trigger: cronjob");
     return { statusCode: 200, body: JSON.stringify({ message: "cron trigger acknowledged" }) };
   }
 

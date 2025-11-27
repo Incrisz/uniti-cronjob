@@ -760,7 +760,7 @@ def _execute_job_task(trigger: str) -> Dict[str, Any]:
 
     # Build a JSON payload and inject the trigger source.
     payload_to_send: Dict[str, Any] = {"trigger": trigger}
-    if payload:
+    if payload and trigger != "cron":
         try:
             parsed = json.loads(payload)
             if isinstance(parsed, dict):
@@ -849,6 +849,7 @@ def _execute_job_task(trigger: str) -> Dict[str, Any]:
         "stderr": stderr,
         "returncode": completed.returncode,
         "function_response": raw_response or "(no payload returned)",
+        "sent_payload": payload_to_send,
     }
 
     if log_output:
